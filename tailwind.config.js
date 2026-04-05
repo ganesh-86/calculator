@@ -12,9 +12,9 @@ export default {
         calculator: '#1e293b',
         screen: '#020617',
         primary: {
-          light: '#f43f5e',
-          DEFAULT: '#e11d48',
-          dark: '#be123c',
+          light: 'var(--color-primary-light)',
+          DEFAULT: 'var(--color-primary)',
+          dark: 'var(--color-primary-dark)',
         },
         key: {
           light: '#334155',

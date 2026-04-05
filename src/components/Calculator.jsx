@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { FlaskConical, History, Moon, Sun } from 'lucide-react'
+import { FlaskConical, History, Moon, Sun, Palette, Ruler } from 'lucide-react'
 import Display from './Display'
 import Keypad from './Keypad'
 import ScientificKeypad from './ScientificKeypad'
 import MemoryBar from './MemoryBar'
 import HistorySidebar from './HistorySidebar'
+import UnitConverter from './UnitConverter'
 import { evaluateExpression } from '../utils/evaluate'
 
 export default function Calculator() {
@@ -16,6 +17,7 @@ export default function Calculator() {
   // UI States
   const [isScientific, setIsScientific] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [isConverterOpen, setIsConverterOpen] = useState(false)
 
   // Memory State
   const [memoryValue, setMemoryValue] = useState(0)
@@ -26,12 +28,28 @@ export default function Calculator() {
     return saved ? JSON.parse(saved) : [];
   })
 
+  // Theme Sync
+  const themes = ['rose', 'emerald', 'amber', 'ocean', 'purple'];
+  const [themeIndex, setThemeIndex] = useState(() => {
+     const stored = localStorage.getItem('calcTheme');
+     return stored !== null ? parseInt(stored) : 0;
+  });
+
   useEffect(() => {
     localStorage.setItem('calcHistory', JSON.stringify(calculationHistory));
   }, [calculationHistory]);
 
+  useEffect(() => {
+     document.documentElement.setAttribute('data-theme', themes[themeIndex]);
+     localStorage.setItem('calcTheme', themeIndex);
+  }, [themeIndex]);
+
   const toggleTheme = () => {
     document.documentElement.classList.toggle('dark');
+  }
+
+  const cycleTheme = () => {
+     setThemeIndex((prev) => (prev + 1) % themes.length);
   }
 
   const isErrorState = (val) => ['Error', 'Div by zero', 'NaN', 'Overflow'].includes(val);
@@ -145,7 +163,6 @@ export default function Calculator() {
 
     const result = evaluateExpression(tokens)
     
-    // Add robust operations to the sidebar LocalStorage cache
     if (!isErrorState(result) && tokens.length > 1) {
        setCalculationHistory(prev => [
          { formula: tokens.join(' ') + ' =', result },
@@ -157,6 +174,31 @@ export default function Calculator() {
     setCurrentValue(result)
     setHasEvaluated(true)
     setWaitingForNewValue(true)
+  }
+
+  const handleSpeechTokens = (tokens) => {
+     const result = evaluateExpression(tokens);
+     const hasEquals = tokens[tokens.length-1] === '=';
+     let calcTokens = [...tokens];
+     if (hasEquals) calcTokens.pop();
+
+     if (!isErrorState(result)) {
+       if (calcTokens.length > 1) {
+          setCalculationHistory(prev => [
+            { formula: calcTokens.join(' ') + ' =', result },
+            ...prev
+          ]);
+       }
+       setHistory([...calcTokens, '=']);
+       setCurrentValue(result);
+       setHasEvaluated(true);
+       setWaitingForNewValue(true);
+     } else {
+       setHistory(calcTokens);
+       setCurrentValue(result);
+       setHasEvaluated(false);
+       setWaitingForNewValue(false);
+     }
   }
 
   const handleClear = () => {
@@ -199,8 +241,8 @@ export default function Calculator() {
   // Keyboard Event Configuration
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (isConverterOpen) return; // Prevent mapping inside converter modal
       const key = e.key;
-
       if (/[0-9]/.test(key)) handleAction('number', key);
       else if (key === '.') handleAction('number', '.');
       else if (key === '+') handleAction('operator', '+');
@@ -215,7 +257,7 @@ export default function Calculator() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [history, currentValue, waitingForNewValue, hasEvaluated, memoryValue]);
+  }, [history, currentValue, waitingForNewValue, hasEvaluated, memoryValue, isConverterOpen]);
 
   // Smooth UI Transition Controller
   const getContainerWidth = () => {
@@ -226,8 +268,10 @@ export default function Calculator() {
   }
 
   return (
-    <div className={`glass-panel rounded-3xl p-6 flex transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden ${getContainerWidth()}`}>
+    <div className={`glass-panel relative rounded-3xl p-6 flex transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden ${getContainerWidth()}`}>
       
+      {isConverterOpen && <UnitConverter onClose={() => setIsConverterOpen(false)} />}
+
       {/* 1. LEFT PANE: Scientific Keypad */}
       <div className={`flex items-end overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] flex-shrink-0 ${isScientific ? 'w-[160px] opacity-100 mr-5' : 'w-0 opacity-0 mr-0'}`}>
          <ScientificKeypad onAction={handleAction} />
@@ -238,34 +282,48 @@ export default function Calculator() {
           {/* Header toggles */}
           <div className="w-full flex justify-between items-center mb-[-6px]">
              
-             <div className="flex items-center gap-2">
+             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pr-1">
                 <button 
                   onClick={() => setIsScientific(!isScientific)}
-                  className={`h-8 px-3 rounded-full flex items-center justify-center gap-2 text-xs font-semibold tracking-wider uppercase transition-all ${isScientific ? 'bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20 dark:text-indigo-300' : 'bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50'}`}
+                  className={`h-8 px-2 rounded-full flex items-center justify-center gap-1 text-[0.65rem] font-bold tracking-wider uppercase transition-all flex-shrink-0 ${isScientific ? 'bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20 dark:text-indigo-300' : 'bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50'}`}
                   title="Toggle Scientific Mode"
                 >
-                  <FlaskConical size={14} /> {isScientific ? 'ON' : 'OFF'}
+                  <FlaskConical size={12} /> {isScientific ? 'ON' : 'OFF'}
+                </button>
+                <button 
+                  onClick={() => setIsConverterOpen(true)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50 transition-colors flex-shrink-0"
+                  title="Unit Converter"
+                >
+                  <Ruler size={13} />
+                </button>
+                <button 
+                  onClick={cycleTheme}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 dark:text-primary-light dark:bg-primary/20 hover:dark:bg-primary/30 transition-colors flex-shrink-0"
+                  title="Cycle Theme Color"
+                >
+                  <Palette size={13} />
                 </button>
                 <button 
                   onClick={toggleTheme}
-                  className="w-8 h-8 rounded-full flex items-center justify-center bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50 transition-colors"
-                  title="Toggle Theme"
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50 transition-colors flex-shrink-0"
+                  title="Dark Mode Toggle"
                 >
-                  <Sun size={14} className="hidden dark:block" />
-                  <Moon size={14} className="block dark:hidden" />
+                  <Sun size={13} className="hidden dark:block" />
+                  <Moon size={13} className="block dark:hidden" />
                 </button>
              </div>
 
              <button 
                onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-               className={`h-8 px-3 rounded-full flex items-center justify-center gap-2 text-xs font-semibold tracking-wider transition-all ${isHistoryOpen ? 'bg-rose-500/10 text-rose-500 dark:bg-rose-500/20 dark:text-rose-300' : 'bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50'}`}
+               className={`h-8 px-2 rounded-full flex items-center justify-center gap-1 text-xs font-semibold tracking-wider flex-shrink-0 transition-all ${isHistoryOpen ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light' : 'bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50'}`}
                title="Toggle History"
              >
-               Logs <History size={14} />
+               Logs <History size={13} />
              </button>
           </div>
 
-          <Display history={history} currentValue={currentValue} />
+          <Display history={history} currentValue={currentValue} onSpeechInput={handleSpeechTokens} />
           <MemoryBar onAction={handleAction} memoryValue={memoryValue} />
           <Keypad onAction={handleAction} />
       </div>

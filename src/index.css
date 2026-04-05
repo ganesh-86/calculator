@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Default Rose Theme */
+  --color-primary-light: #fb7185; 
+  --color-primary: #e11d48; 
+  --color-primary-dark: #be123c; 
+}
+
+[data-theme='emerald'] {
+  --color-primary-light: #34d399; 
+  --color-primary: #10b981; 
+  --color-primary-dark: #047857; 
+}
+
+[data-theme='amber'] {
+  --color-primary-light: #fbbf24;
+  --color-primary: #f59e0b;
+  --color-primary-dark: #b45309;
+}
+
+[data-theme='ocean'] {
+  --color-primary-light: #38bdf8;
+  --color-primary: #0ea5e9;
+  --color-primary-dark: #0369a1;
+}
+
+[data-theme='purple'] {
+  --color-primary-light: #c084fc;
+  --color-primary: #9333ea;
+  --color-primary-dark: #6b21a8;
+}
+
 @layer utilities {
   .glass-panel {
     @apply bg-white/40 dark:bg-white/5 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-xl dark:shadow-2xl;

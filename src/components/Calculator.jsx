@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FlaskConical, History } from 'lucide-react'
+import { FlaskConical, History, Moon, Sun } from 'lucide-react'
 import Display from './Display'
 import Keypad from './Keypad'
 import ScientificKeypad from './ScientificKeypad'
@@ -20,19 +20,24 @@ export default function Calculator() {
   // Memory State
   const [memoryValue, setMemoryValue] = useState(0)
 
-  // Local Storage Hook Simulation
+  // System Sync Hooks
   const [calculationHistory, setCalculationHistory] = useState(() => {
     const saved = localStorage.getItem('calcHistory');
     return saved ? JSON.parse(saved) : [];
   })
 
-  // Synchronize history logs into local storage whenever it changes
   useEffect(() => {
     localStorage.setItem('calcHistory', JSON.stringify(calculationHistory));
   }, [calculationHistory]);
 
+  const toggleTheme = () => {
+    document.documentElement.classList.toggle('dark');
+  }
+
+  const isErrorState = (val) => ['Error', 'Div by zero', 'NaN', 'Overflow'].includes(val);
+
   const handleNumber = (num, isConstant = false) => {
-    if (currentValue === 'Error') handleClear()
+    if (isErrorState(currentValue)) handleClear()
 
     if (hasEvaluated) {
       setCurrentValue(isConstant ? num : (num === '.' ? '0.' : num))
@@ -58,7 +63,7 @@ export default function Calculator() {
   }
 
   const handleOperator = (op) => {
-    if (currentValue === 'Error') return
+    if (isErrorState(currentValue)) return
 
     if (hasEvaluated) {
       setHistory([currentValue, op])
@@ -80,7 +85,7 @@ export default function Calculator() {
   }
 
   const handleUnary = (op) => {
-    if (currentValue === 'Error') return;
+    if (isErrorState(currentValue)) return;
 
     if (hasEvaluated) {
       if (op === '²') {
@@ -131,7 +136,7 @@ export default function Calculator() {
   }
 
   const calculate = () => {
-    if (currentValue === 'Error' || hasEvaluated) return
+    if (isErrorState(currentValue) || hasEvaluated) return
 
     const tokens = [...history]
     if (!waitingForNewValue) {
@@ -141,7 +146,7 @@ export default function Calculator() {
     const result = evaluateExpression(tokens)
     
     // Add robust operations to the sidebar LocalStorage cache
-    if (result !== 'Error' && tokens.length > 1) {
+    if (!isErrorState(result) && tokens.length > 1) {
        setCalculationHistory(prev => [
          { formula: tokens.join(' ') + ' =', result },
          ...prev
@@ -163,7 +168,7 @@ export default function Calculator() {
 
   const handleDelete = () => {
     if (hasEvaluated || waitingForNewValue) return
-    if (currentValue === 'Error') {
+    if (isErrorState(currentValue)) {
       handleClear()
       return
     }
@@ -175,7 +180,7 @@ export default function Calculator() {
   }
 
   const handleAction = (type, value) => {
-    if (currentValue === 'Error' && type !== 'clear') {
+    if (isErrorState(currentValue) && type !== 'clear') {
        handleClear();
     }
     switch (type) {
@@ -190,6 +195,27 @@ export default function Calculator() {
       default: break;
     }
   }
+
+  // Keyboard Event Configuration
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const key = e.key;
+
+      if (/[0-9]/.test(key)) handleAction('number', key);
+      else if (key === '.') handleAction('number', '.');
+      else if (key === '+') handleAction('operator', '+');
+      else if (key === '-') handleAction('operator', '-');
+      else if (key === '*') handleAction('operator', '×');
+      else if (key === '/') { e.preventDefault(); handleAction('operator', '÷'); }
+      else if (key === '^') handleAction('operator', '^');
+      else if (key === 'Enter' || key === '=') { e.preventDefault(); handleAction('calculate'); }
+      else if (key === 'Backspace') handleAction('delete');
+      else if (key === 'Escape') handleAction('clear');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [history, currentValue, waitingForNewValue, hasEvaluated, memoryValue]);
 
   // Smooth UI Transition Controller
   const getContainerWidth = () => {
@@ -211,16 +237,28 @@ export default function Calculator() {
       <div className="flex flex-col gap-4 flex-1 flex-shrink-0 min-w-[292px]">
           {/* Header toggles */}
           <div className="w-full flex justify-between items-center mb-[-6px]">
-             <button 
-               onClick={() => setIsScientific(!isScientific)}
-               className={`h-8 px-3 rounded-full flex items-center justify-center gap-2 text-xs font-semibold tracking-wider uppercase transition-all ${isScientific ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/5 hover:bg-white/10 text-white/50'}`}
-               title="Toggle Scientific Mode"
-             >
-               <FlaskConical size={14} /> {isScientific ? 'ON' : 'OFF'}
-             </button>
+             
+             <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsScientific(!isScientific)}
+                  className={`h-8 px-3 rounded-full flex items-center justify-center gap-2 text-xs font-semibold tracking-wider uppercase transition-all ${isScientific ? 'bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20 dark:text-indigo-300' : 'bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50'}`}
+                  title="Toggle Scientific Mode"
+                >
+                  <FlaskConical size={14} /> {isScientific ? 'ON' : 'OFF'}
+                </button>
+                <button 
+                  onClick={toggleTheme}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50 transition-colors"
+                  title="Toggle Theme"
+                >
+                  <Sun size={14} className="hidden dark:block" />
+                  <Moon size={14} className="block dark:hidden" />
+                </button>
+             </div>
+
              <button 
                onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-               className={`h-8 px-3 rounded-full flex items-center justify-center gap-2 text-xs font-semibold tracking-wider transition-all ${isHistoryOpen ? 'bg-rose-500/20 text-rose-300' : 'bg-white/5 hover:bg-white/10 text-white/50'}`}
+               className={`h-8 px-3 rounded-full flex items-center justify-center gap-2 text-xs font-semibold tracking-wider transition-all ${isHistoryOpen ? 'bg-rose-500/10 text-rose-500 dark:bg-rose-500/20 dark:text-rose-300' : 'bg-black/5 hover:bg-black/10 text-slate-500 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/50'}`}
                title="Toggle History"
              >
                Logs <History size={14} />

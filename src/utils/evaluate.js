@@ -82,7 +82,7 @@ export function evaluateExpression(tokens) {
 
       const next = parseFloat(nextStr);
       if (!isNaN(prev) && !isNaN(next)) {
-         if (token === '÷' && next === 0) return 'Error';
+         if (token === '÷' && next === 0) return 'Div by zero';
          tempTokens.push(token === '×' ? (prev * next).toString() : (prev / next).toString());
          i += 2;
          continue;
@@ -110,7 +110,8 @@ export function evaluateExpression(tokens) {
     i += 2;
   }
 
-  if (isNaN(finalResult) || !isFinite(finalResult)) return 'Error';
+  if (isNaN(finalResult)) return 'NaN';
+  if (!isFinite(finalResult)) return 'Overflow';
   
   // Clean decimal rounding for UI safety
   const precise = parseFloat(finalResult.toPrecision(12));

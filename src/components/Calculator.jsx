@@ -1,16 +1,24 @@
 import { useState } from 'react'
 import Display from './Display'
 import Keypad from './Keypad'
+import { evaluateExpression } from '../utils/evaluate'
 
 export default function Calculator() {
+  const [history, setHistory] = useState([])
   const [currentValue, setCurrentValue] = useState('0')
-  const [previousValue, setPreviousValue] = useState(null)
-  const [operator, setOperator] = useState(null)
   const [waitingForNewValue, setWaitingForNewValue] = useState(false)
+  const [hasEvaluated, setHasEvaluated] = useState(false)
 
   const handleNumber = (num) => {
-    if (waitingForNewValue) {
-      setCurrentValue(num)
+    if (currentValue === 'Error') handleClear()
+
+    if (hasEvaluated) {
+      setCurrentValue(num === '.' ? '0.' : num)
+      setHistory([])
+      setHasEvaluated(false)
+      setWaitingForNewValue(false)
+    } else if (waitingForNewValue) {
+      setCurrentValue(num === '.' ? '0.' : num)
       setWaitingForNewValue(false)
     } else if (currentValue === '0' && num !== '.') {
       setCurrentValue(num)
@@ -21,56 +29,51 @@ export default function Calculator() {
     }
   }
 
-  const calculateResult = (prevStr, currentStr, op) => {
-    const prev = parseFloat(prevStr)
-    const current = parseFloat(currentStr)
-    if (isNaN(prev) || isNaN(current)) return current
-
-    let computation = 0
-    switch (op) {
-      case '+': computation = prev + current; break
-      case '-': computation = prev - current; break
-      case '×': computation = prev * current; break
-      case '÷': 
-        if (current === 0) return 'Error'
-        computation = prev / current
-        break
-      default: return current
-    }
-    // Handle floating point precision to avoid e.g. 0.1 + 0.2 = 0.30000000000000004
-    return parseFloat(computation.toPrecision(12)).toString()
-  }
-
   const handleOperator = (op) => {
-    if (operator && !waitingForNewValue) {
-      const result = calculateResult(previousValue, currentValue, operator)
-      setCurrentValue(result)
-      setPreviousValue(result)
+    if (currentValue === 'Error') return
+
+    if (hasEvaluated) {
+      setHistory([currentValue, op])
+      setHasEvaluated(false)
+      setWaitingForNewValue(true)
+    } else if (waitingForNewValue && history.length > 0) {
+      // User typed an operator right after another, just swap it
+      const newHistory = [...history]
+      newHistory[newHistory.length - 1] = op
+      setHistory(newHistory)
     } else {
-      setPreviousValue(currentValue)
+      setHistory([...history, currentValue, op])
+      setWaitingForNewValue(true)
     }
-    setOperator(op)
-    setWaitingForNewValue(true)
   }
 
   const calculate = () => {
-    if (!operator || !previousValue || waitingForNewValue) return
-    const result = calculateResult(previousValue, currentValue, operator)
+    if (currentValue === 'Error' || hasEvaluated) return
+
+    // Collect all tokens for the final calculation
+    const tokens = [...history]
+    if (!waitingForNewValue) {
+      tokens.push(currentValue)
+    }
+
+    const result = evaluateExpression(tokens)
+    
+    // Append '=' for display purposes
+    setHistory([...tokens, '='])
     setCurrentValue(result)
-    setPreviousValue(null)
-    setOperator(null)
+    setHasEvaluated(true)
     setWaitingForNewValue(true)
   }
 
   const handleClear = () => {
+    setHistory([])
     setCurrentValue('0')
-    setPreviousValue(null)
-    setOperator(null)
     setWaitingForNewValue(false)
+    setHasEvaluated(false)
   }
 
   const handleDelete = () => {
-    if (waitingForNewValue) return
+    if (hasEvaluated || waitingForNewValue) return
     if (currentValue === 'Error') {
       handleClear()
       return
@@ -83,10 +86,6 @@ export default function Calculator() {
   }
 
   const handleAction = (type, value) => {
-    if (currentValue === 'Error' && type !== 'clear') {
-      handleClear()
-    }
-    
     switch (type) {
       case 'number': handleNumber(value); break
       case 'operator': handleOperator(value); break
@@ -99,7 +98,7 @@ export default function Calculator() {
 
   return (
     <div className="w-[340px] glass-panel rounded-3xl p-6 flex flex-col gap-6">
-      <Display currentValue={currentValue} previousValue={previousValue} operator={operator} />
+      <Display history={history} currentValue={currentValue} />
       <Keypad onAction={handleAction} />
     </div>
   )

@@ -1,5 +1,7 @@
 # Modern Calculator UI
 
+![Calculator Interface](./Assets/Screenshot%20(36).png)
+
 A beautiful, functional, glassmorphic calculator built with React and Tailwind CSS.
 
 ## Features

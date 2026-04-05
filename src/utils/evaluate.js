@@ -1,64 +1,118 @@
 export function evaluateExpression(tokens) {
-  // Guard against empty array
   if (!tokens || tokens.length === 0) return '0';
-
-  // Make a shallow copy to prevent mutations from affecting state
   let calcTokens = [...tokens];
 
-  // 1. Trim trailing operators (e.g., "return 2 + 3" from "2 + 3 +")
-  while (calcTokens.length > 0 && ['+', '-', '×', '÷'].includes(calcTokens[calcTokens.length - 1])) {
+  // Pass 0: Constants Replacement
+  for (let i = 0; i < calcTokens.length; i++) {
+    if (calcTokens[i] === 'π') calcTokens[i] = Math.PI.toString();
+    if (calcTokens[i] === 'e') calcTokens[i] = Math.E.toString();
+  }
+
+  // Trim trailing standard binary operators
+  while (calcTokens.length > 0 && ['+', '-', '×', '÷', '^'].includes(calcTokens[calcTokens.length - 1])) {
     calcTokens.pop();
   }
-  
   if (calcTokens.length === 0) return '0';
 
-  // 2. Pass 1: Multiplication & Division
+  // Pass 1: Postfix Unary (Square: ²)
+  for (let i = 0; i < calcTokens.length; i++) {
+    if (calcTokens[i] === '²') {
+      if (i > 0) {
+        const val = parseFloat(calcTokens[i-1]);
+        calcTokens.splice(i-1, 2, (val * val).toString());
+        i--;
+      } else {
+        calcTokens.splice(i, 1);
+        i--;
+      }
+    }
+  }
+
+  // Pass 2: Prefix Unary (sin, cos, tan, log, ln, √) 
+  for (let i = calcTokens.length - 1; i >= 0; i--) {
+    const token = calcTokens[i];
+    if (['sin', 'cos', 'tan', 'log', 'ln', '√'].includes(token)) {
+      if (i + 1 < calcTokens.length) {
+        const val = parseFloat(calcTokens[i+1]);
+        if (isNaN(val)) continue;
+
+        let res = 0;
+        switch(token) {
+          case 'sin': res = Math.sin(val); break;
+          case 'cos': res = Math.cos(val); break;
+          case 'tan': res = Math.tan(val); break;
+          case 'log': res = Math.log10(val); break;
+          case 'ln':  res = Math.log(val); break;
+          case '√':   res = Math.sqrt(val); break;
+        }
+        calcTokens.splice(i, 2, res.toString());
+      } else {
+        calcTokens.splice(i, 1); 
+      }
+    }
+  }
+
+  // Pass 3: Power (^) Precedence
   let tempTokens = [];
   let i = 0;
   while (i < calcTokens.length) {
-    const token = calcTokens[i];
-    if (token === '×' || token === '÷') {
-      const prevStr = tempTokens.pop();
-      const op = token;
-      i++;
-      const nextStr = calcTokens[i];
-      
-      const prev = parseFloat(prevStr);
-      const next = parseFloat(nextStr);
-      
-      let res;
-      if (op === '×') {
-        res = prev * next;
-      } else {
-        if (next === 0) return 'Error';
-        res = prev / next;
+    if (calcTokens[i] === '^') {
+      const prev = parseFloat(tempTokens.pop());
+      const next = parseFloat(calcTokens[i+1]);
+      if (!isNaN(prev) && !isNaN(next)) {
+         tempTokens.push(Math.pow(prev, next).toString());
+         i += 2;
+         continue;
       }
-      tempTokens.push(res.toString());
-    } else {
-      tempTokens.push(token);
     }
+    tempTokens.push(calcTokens[i]);
     i++;
   }
+  calcTokens = tempTokens;
 
-  // 3. Pass 2: Addition & Subtraction
-  let finalResult = parseFloat(tempTokens[0]);
+  // Pass 4: Multiplication & Division
+  tempTokens = [];
+  i = 0;
+  while (i < calcTokens.length) {
+    const token = calcTokens[i];
+    if (token === '×' || token === '÷') {
+      const prev = parseFloat(tempTokens.pop());
+      const nextStr = calcTokens[i+1];
+      if (nextStr === undefined) break;
+
+      const next = parseFloat(nextStr);
+      if (!isNaN(prev) && !isNaN(next)) {
+         if (token === '÷' && next === 0) return 'Error';
+         tempTokens.push(token === '×' ? (prev * next).toString() : (prev / next).toString());
+         i += 2;
+         continue;
+      }
+    }
+    tempTokens.push(calcTokens[i]);
+    i++;
+  }
+  calcTokens = tempTokens;
+
+  // Pass 5: Addition & Subtraction
+  if (calcTokens.length === 0) return '0';
+  let finalResult = parseFloat(calcTokens[0]);
   i = 1;
-  while (i < tempTokens.length) {
-    const op = tempTokens[i];
-    const nextStr = tempTokens[i + 1];
+  while (i < calcTokens.length) {
+    const op = calcTokens[i];
+    const nextStr = calcTokens[i + 1];
+    if (nextStr === undefined) break;
+
     const next = parseFloat(nextStr);
-    
-    if (op === '+') {
-      finalResult += next;
-    } else if (op === '-') {
-      finalResult -= next;
+    if (!isNaN(next)) {
+      if (op === '+') finalResult += next;
+      else if (op === '-') finalResult -= next;
     }
     i += 2;
   }
 
-  // Final sanity checks
-  if (isNaN(finalResult)) return 'Error';
+  if (isNaN(finalResult) || !isFinite(finalResult)) return 'Error';
   
-  // Format to avoid extreme floating point issues (e.g. 0.1 + 0.2)
-  return parseFloat(finalResult.toPrecision(12)).toString();
+  // Clean decimal rounding for UI safety
+  const precise = parseFloat(finalResult.toPrecision(12));
+  return precise.toString();
 }
